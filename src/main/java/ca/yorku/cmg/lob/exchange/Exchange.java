@@ -32,149 +32,149 @@ import ca.yorku.cmg.lob.tradestandards.ITrade;
  */
 public class Exchange {
 
-	Orderbook book;
-	SecurityList securities = new SecurityList();
-	AccountsList accounts = new AccountsList();
-	ArrayList<Trade> tradesLog = new ArrayList<Trade>();
-	
-	long totalFees = 0;
-	
+    Orderbook book;
+    SecurityList securities = new SecurityList();
+    AccountsList accounts = new AccountsList();
+    ArrayList<Trade> tradesLog = new ArrayList<Trade>();
+    
+    long totalFees = 0;
+    
     /**
      * Default constructor for the Exchange class.
      */
-	public Exchange(){
-		book = new Orderbook();
-	}
-	
-	
+    public Exchange(){
+        book = new Orderbook();
+    }
+    
+    
     /**
      * Validates an order to ensure it complies with exchange rules. Checks if trader and security are supported by the exchange, and that the trader has enough balance of the exchange. 
      * 
      * @param o the {@linkplain ca.yorku.cmg.lob.tradestandards.IOrder}-implementing object to be validated
      * @return {@code true} if the order is valid, {@code false} otherwise
      */
-	public boolean validateOrder(IOrder o) {
-		// Does ticker exist? See if the security associated with the order exists in the list of securities
-		if (__________________________ == null) {
-			System.err.println("Order validation: ticker " + ______________.getTicker() + " not supported.");
-			return (false);
-		}
-		
-		//Does the trader exist? Check to see if the trader exists 
-		if (__________________________ == null) {
-			System.err.println("Order validation: trader with ID " + _______________.getID() + " not registered with the exchange.");
-			return (false);
-		}
+    public boolean validateOrder(IOrder o) {
+        // Does ticker exist? See if the security associated with the order exists in the list of securities
+        if (securities.getSecurityByTicker(o.getSecurity().getTicker()) == null) {
+            System.err.println("Order validation: ticker " + o.getSecurity().getTicker() + " not supported.");
+            return (false);
+        }
+        
+        //Does the trader exist? Check to see if the trader exists 
+        if (accounts.getTraderAccount(o.getTrader()) == null) {
+            System.err.println("Order validation: trader with ID " + o.getTrader().getID() + " not registered with the exchange.");
+            return (false);
+        }
 
-		//Put in pos the position that the trader mentioned in the order has in the security mentioned in the order
-		int pos = ___________________________________;
-		//Get the balance the trader has with the exchange
-		long bal = __________________________________;
+        //Put in pos the position that the trader mentioned in the order has in the security mentioned in the order
+        int pos = accounts.getTraderAccount(o.getTrader()).getPosition(o.getSecurity().getTicker());
+        //Get the balance the trader has with the exchange
+        long bal = accounts.getTraderAccount(o.getTrader()).getBalance();
 
-		// Does ask trader have position at the security sufficient for a sell?
-		if ((o instanceof Ask) && (pos < o.getQuantity())) {
-			System.err.println("Order validation: seller with ID " + _________.getID() + " not enough shares of " + _________.getTicker() + ": has " + pos + " and tries to sell " + _____.getQuantity());
-			return (false);
-		}
-		
-		// Does bid trader have balance sufficient for a buy?
-		if ((o instanceof Bid) && (bal < o.getValue())) {
-			System.err.println(
-					String.format("Order validation: buyer with ID %d does not have enough balance: has $%,.2f and tries to buy for $%,.2f",
-							____________.getID(), bal/100.0,o.getValue()/100.0));
-					
-			return (false);
-		}
+        // Does ask trader have position at the security sufficient for a sell?
+        if ((o instanceof Ask) && (pos < o.getQuantity())) {
+            System.err.println("Order validation: seller with ID " + o.getTrader().getID() + " not enough shares of " + o.getSecurity().getTicker() + ": has " + pos + " and tries to sell " + o.getQuantity());
+            return (false);
+        }
+        
+        // Does bid trader have balance sufficient for a buy?
+        if ((o instanceof Bid) && (bal < o.getValue())) {
+            System.err.println(
+                    String.format("Order validation: buyer with ID %d does not have enough balance: has $%,.2f and tries to buy for $%,.2f",
+                            o.getTrader().getID(), bal/100.0,o.getValue()/100.0));
+                    
+            return (false);
+        }
 
-		return (true);
-	}
-	
+        return (true);
+    }
+    
     /**
      * Submits an order to the exchange for processing.
      * 
      * @param o     the {@linkplain ca.yorku.cmg.lob.tradestandards.IOrder}-implementing object to be processed
      * @param time the timestamp of the order submission (seconds)
      */
-	public void submitOrder(IOrder o, long time) {
-		if (!validateOrder(o)){
-			return;
-		}
-		
-		OrderOutcome oOutcome;
-		
-		//This is a bid for a security
-		if (o instanceof Bid) {// Order is a bid
-			//Go to the asks half-book, see if there are matching asks (selling offers) and process them
-			oOutcome = ____________.processOrder(o, time);
-			//If the quanity of the unfulfilled order in the outcome is not zero
-			if (_____________________ > 0) {
-				//Not the entire bid order was fulfilled, add the unfulfilled part to the bid half-book 
-				_______________________________________________;
-			}
-		} else { //order is an ask
-			//Go to the bids half-book and see if there are matching bids (buying offers) and process them
-			oOutcome = ____________.processOrder(o, time);
-			//If the quanity of the unfulfilled order in the outcome is not zero
-			if (oOutcome.getUnfulfilledOrder().getQuantity() > 0) {
-				//Not the entire ask order was fulfilled, add the unfulfilled part to the ask half-book 
-				_______________________________________________;
-			}			
-		}
+    public void submitOrder(IOrder o, long time) {
+        if (!validateOrder(o)){
+            return;
+        }
+        
+        OrderOutcome oOutcome;
+        
+        //This is a bid for a security
+        if (o instanceof Bid) {// Order is a bid
+            //Go to the asks half-book, see if there are matching asks (selling offers) and process them
+            oOutcome = book.getAsks().processOrder(o, time);
+            //If the quanity of the unfulfilled order in the outcome is not zero
+            if (oOutcome.getUnfulfilledOrder().getQuantity() > 0) {
+                //Not the entire order was fulfilled, add the unfulfilled order to the bid half-book 
+                book.getBids().addOrder((Bid) oOutcome.getUnfulfilledOrder());
+            }
+        } else { //order is an ask
+            //Go to the bids half-book and see if there are matching bids (buying offers) and process them
+            oOutcome = book.getBids().processOrder(o, time);
+            //If the quanity of the unfulfilled order in the outcome is not zero
+            if (oOutcome.getUnfulfilledOrder().getQuantity() > 0) {
+                // Not the entire order was fulfilled, add it to the bid half-book
+                book.getAsks().addOrder((Ask) oOutcome.getUnfulfilledOrder());
+            }           
+        }
 
-		//Save resulting trades to the tradesLog
-		if (oOutcome.getResultingTrades() != null) {
-			tradesLog.addAll(oOutcome.getResultingTrades());
-		} else {
-			return;
-		}
-		
-		//Calculate Fees for the trades
-		for (ITrade t:oOutcome.getResultingTrades()) {
-			
-			//Update balances for Buyer
-			
-			//Get the fee that they buyer is supposed to pay
-			_______________________________________________;
-			//Apply the above fee to the account balance of the buyer 			
-			_______________________________________________;
-			//Apply the trade payment to the account balance of the buyer (they spent money)
-			_______________________________________________;
-			//Add the bought stocks to the position of the buyer
-			_______________________________________________;
-			
-			//Update balances for Seller
-			
-			//Get the fee that the seller is supposed to pay
-			_______________________________________________;
-			//Apply the above fee to the account balance of the seller
-			_______________________________________________;
-			//Apply the trade payment to the account balance of the seller (they earned money)
-			_______________________________________________;
-			//Deduct the sold stocks from the position of the seller
-			_______________________________________________;
-			
-			this.totalFees += t.getBuyerFee() + t.getSellerFee(); 
-		}
-	}
-	
-	
-	
-	//
-	// I O 
-	//
-	
-	
-	
-	
-	
-	
+        //Save resulting trades to the tradesLog
+        if (oOutcome.getResultingTrades() != null) {
+            tradesLog.addAll(oOutcome.getResultingTrades());
+        } else {
+            return;
+        }
+        
+        //Calculate Fees for the trades
+        for (ITrade trade : oOutcome.getResultingTrades()) {
+            
+            //Update balances for Buyer
+            
+            //Get the fee that they buyer is supposed to pay
+            int buyerFee = accounts.getTraderAccount(trade.getBuyer()).getFee(trade);
+            //Apply the above fee to the account balance of the buyer           
+            accounts.getTraderAccount(trade.getBuyer()).withdrawMoney(buyerFee);
+            //Apply the trade payment to the account balance of the buyer (they spent money)
+            accounts.getTraderAccount(trade.getBuyer()).withdrawMoney(trade.getValue());
+            //Add the bought stocks to the position of the buyer
+            accounts.getTraderAccount(trade.getBuyer()).updatePosition(trade.getSecurity().getTicker(), accounts.getTraderAccount(trade.getBuyer()).getPosition(trade.getSecurity().getTicker()) + trade.getQuantity());
+            
+            //Update balances for Seller
+            
+            //Get the fee that the seller is supposed to pay
+            int sellerFee = accounts.getTraderAccount(trade.getSeller()).getFee(trade);
+            //Apply the above fee to the account balance of the seller
+            accounts.getTraderAccount(trade.getSeller()).withdrawMoney(sellerFee);
+            //Apply the trade payment to the account balance of the seller (they earned money)
+            accounts.getTraderAccount(trade.getSeller()).addMoney(trade.getValue());
+            //Deduct the sold stocks from the position of the seller
+            accounts.getTraderAccount(trade.getSeller()).updatePosition(trade.getSecurity().getTicker(), accounts.getTraderAccount(trade.getSeller()).getPosition(trade.getSecurity().getTicker()) - trade.getQuantity());
+            
+            this.totalFees += buyerFee + sellerFee; 
+        }
+    }
+    
+    
+    
+    //
+    // I O 
+    //
+    
+    
+    
+    
+    
+    
     /**
      * Reads the security list from a file and populates the exchange.
      * 
      * @param path the path to the security list file
      */
-	public void readSecurityListfromFile(String path) {
-	    try (BufferedReader br = new BufferedReader(new FileReader(path))) {
+    public void readSecurityListfromFile(String path) {
+        try (BufferedReader br = new BufferedReader(new FileReader(path))) {
             String line;
             boolean isFirstLine = true; // Skip header
 
@@ -195,15 +195,15 @@ public class Exchange {
         } catch (IOException e) {
             e.printStackTrace();
         }
-	}
-	
+    }
+    
     /**
      * Reads the accounts list from a file and populates the exchange.
      * 
      * @param path the path to the accounts list file
      */
-	public void readAccountsListFromFile(String path) {
-	    try (BufferedReader br = new BufferedReader(new FileReader(path))) {
+    public void readAccountsListFromFile(String path) {
+        try (BufferedReader br = new BufferedReader(new FileReader(path))) {
             String line;
             boolean isFirstLine = true; // Skip header
 
@@ -218,16 +218,16 @@ public class Exchange {
                     String traderType = parts[1].trim();
                     String accType = parts[2].trim();
                     long initBalance = Long.parseLong(parts[3].trim());
-                	Trader t;
+                    Trader t;
                     if (traderType.equals("Retail")) {
-                    	t = new TraderRetail(traderTitle);
+                        t = new TraderRetail(traderTitle);
                     } else {
-                    	t = new TraderInstitutional(traderTitle);
+                        t = new TraderInstitutional(traderTitle);
                     }
                     if (accType.equals("Basic")) {
-                    	accounts.addAccount(new AccountBasic(t,initBalance));
+                        accounts.addAccount(new AccountBasic(t,initBalance));
                     } else {
-                    	accounts.addAccount(new AccountPro(t,initBalance));
+                        accounts.addAccount(new AccountPro(t,initBalance));
                     }
                 } else {
                     System.err.println("Skipping malformed line (two few attributes): " + line);
@@ -236,15 +236,15 @@ public class Exchange {
         } catch (IOException e) {
             e.printStackTrace();
         }
-	}
-	
+    }
+    
     /**
      * Reads initial positions from a file and updates account holdings.
      * 
      * @param path the path to the initial positions file
      */
-	public void readInitialPositionsFromFile(String path) {
-	    try (BufferedReader br = new BufferedReader(new FileReader(path))) {
+    public void readInitialPositionsFromFile(String path) {
+        try (BufferedReader br = new BufferedReader(new FileReader(path))) {
             String line;
             boolean isFirstLine = true; // Skip header
 
@@ -261,11 +261,11 @@ public class Exchange {
                     Trader trad = accounts.getTraderByID(tid); 
                     //does the trader id have an account? Is the ticker supported?
                     if (trad == null) {
-                    	System.err.println("Initial Balances: Trader does not exist: " + line);
+                        System.err.println("Initial Balances: Trader does not exist: " + line);
                     } else if (securities.getSecurityByTicker(tkr) == null) { 
-                    	System.err.println("Initial Balances: Ticker not traded in this exchange: " + line);
+                        System.err.println("Initial Balances: Ticker not traded in this exchange: " + line);
                     } else {
-                    	accounts.getTraderAccount(trad).updatePosition(tkr, count);
+                        accounts.getTraderAccount(trad).updatePosition(tkr, count);
                     }
                 } else {
                     System.err.println("Skipping malformed line (too few attributes): " + line);
@@ -274,15 +274,15 @@ public class Exchange {
         } catch (IOException e) {
             e.printStackTrace();
         }
-	}
-		
+    }
+        
     /**
      * Processes a file containing orders and submits them to the exchange.
      * 
      * @param path the path to the orders file
      */
-	public void processOrderFile(String path) {
-	    try (BufferedReader br = new BufferedReader(new FileReader(path))) {
+    public void processOrderFile(String path) {
+        try (BufferedReader br = new BufferedReader(new FileReader(path))) {
             String line;
             boolean isFirstLine = true; // Skip header
 
@@ -305,11 +305,11 @@ public class Exchange {
                     
                     if ((t!=null) && (sec!=null)) {
                         if (type.equals("ask")) {
-                        	submitOrder(new Ask(t,sec,price,qty,time), time);
+                            submitOrder(new Ask(t,sec,price,qty,time), time);
                         } else if (type.equals("bid")) {
-                        	submitOrder(new Bid(t,sec,price,qty,time), time);
+                            submitOrder(new Bid(t,sec,price,qty,time), time);
                         } else {
-                        	System.err.println("Order type not found (skipping): " + line);
+                            System.err.println("Order type not found (skipping): " + line);
                         }
                     }
                 } else {
@@ -319,45 +319,45 @@ public class Exchange {
         } catch (IOException e) {
             e.printStackTrace();
         }
-	}
-	
+    }
+    
     /**
      * Prints a table of current ask orders.
      * 
      * @param header whether to include a header in the output
      * @return a string representation of the ask table
      */
-	public String printAskTable(boolean header) {
-		return(book.getAsks().printAllOrders(header));
-	}
-	
+    public String printAskTable(boolean header) {
+        return(book.getAsks().printAllOrders(header));
+    }
+    
     /**
      * Prints a table of current bid orders.
      * 
      * @param header whether to include a header in the output
      * @return a string representation of the bid table
      */
-	public String printBidTable(boolean header) {
-		return(book.getBids().printAllOrders(header));
-	}
-	
+    public String printBidTable(boolean header) {
+        return(book.getBids().printAllOrders(header));
+    }
+    
     /**
      * Prints a log of completed trades.
      * 
      * @param header whether to include a header in the output
      * @return a string representation of the trades log
      */
-	public String printTradesLog(boolean header) {
-		String output = "";
-		if (header) {
-			output = "[From____  To______  Tkr_  Quantity  Price__  Time____]\n";
-			//"[%8d  %8d  %s  %8d  %7.2f  %8d]\n", 
-		}
-		for (Trade t: tradesLog) {
-			output += t.toString();
-		}
-		return (output);
-	}
+    public String printTradesLog(boolean header) {
+        String output = "";
+        if (header) {
+            output = "[From____  To______  Tkr_  Quantity  Price__  Time____]\n";
+            //"[%8d  %8d  %s  %8d  %7.2f  %8d]\n", 
+        }
+        for (Trade t: tradesLog) {
+            output += t.toString();
+        }
+        return (output);
+    }
 
     /**
      * Prints account balances of the exchange's customers
@@ -365,49 +365,50 @@ public class Exchange {
      * @param header whether to include a header in the output
      * @return a string representation of account balances
      */
-	public String printBalances(boolean header) {
-		return(accounts.debugPrintBalances(header));
-	}
-	
+    public String printBalances(boolean header) {
+        return(accounts.debugPrintBalances(header));
+    }
+    
     /**
      * Prints the total fees collected by the exchange.
      * 
      * @param header whether to include a header in the output
      * @return a string representation of fees collected
      */
-	public String printFeesCollected(boolean header) {
-		if (header) {
-			return (String.format("            Fees Collected TOTAL: %16s", 
-					String.format("$%,.2f",this.totalFees/100.0)));
-		} else {
-			return (String.format("%16s", 
-					String.format("$%,.2f",this.totalFees/100.0)));
-		}
-	}
-	
-	
-	
-	
-	//
-	// G E T T E R S
-	//
-		
-	
+    public String printFeesCollected(boolean header) {
+        if (header) {
+            return (String.format("            Fees Collected TOTAL: %16s", 
+                    String.format("$%,.2f",this.totalFees/100.0)));
+        } else {
+            return (String.format("%16s", 
+                    String.format("$%,.2f",this.totalFees/100.0)));
+        }
+    }
+    
+    
+    
+    
+    //
+    // G E T T E R S
+    //
+        
+    
     /**
      * Retrieves the list of securities managed by the exchange.
      * 
      * @return the {@linkplain ca.yorku.cmg.lob.security.SecurityList} object
      */
-	public SecurityList getSecurities() {
-		return securities;
-	}
-	
+    public SecurityList getSecurities() {
+        return securities;
+    }
+    
     /**
      * Retrieves the list of accounts managed by the exchange.
      * 
      * @return the {@linkplain ca.yorku.cmg.lob.exchange.AccountsList} object
      */
-	public AccountsList getAccounts() {
-		return accounts;
-	}
-}
+    public AccountsList getAccounts() {
+        return accounts;
+    }
+}    
+
